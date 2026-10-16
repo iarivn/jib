@@ -355,6 +355,10 @@
   .rowbtns button{font-size:14px}
   .toast{font-size:13px}
   .foot{font-size:10.5px}
+
+  /* ===== ACCOUNTS ===== */
+  .hero{cursor:pointer}
+  .hero-link{margin-top:12px;font-size:12px;opacity:.78;position:relative;z-index:1;text-align:center}
 </style>
 </head>
 <body>
@@ -363,11 +367,11 @@
 
   <!-- ===== خانه ===== -->
   <main class="view active" id="view-home">
-    <div class="hero">
+    <div class="hero" onclick="go('acc')">
       <div class="hero-top">
         <div class="avatar">👋</div>
         <div class="who"><b>سلام!</b><span id="todayLine">—</span></div>
-        <button class="gbtn" onclick="go('rep')" title="گزارش">📊</button>
+        <button class="gbtn" onclick="event.stopPropagation();go('rep')" title="گزارش">📊</button>
       </div>
       <div class="bal-label">موجودی کل</div>
       <div class="bal"><span id="balance">۰</span> <small>تومان</small></div>
@@ -375,6 +379,7 @@
         <div class="hstat in"><span>ورودی این ماه ⬆</span><b id="mIn">۰</b></div>
         <div class="hstat out"><span>خروجی این ماه ⬇</span><b id="mOut">۰</b></div>
       </div>
+      <div class="hero-link">💳 مدیریت موجودی و کارت‌ها</div>
     </div>
 
     <div class="qa">
@@ -463,6 +468,31 @@
     <div class="foot">جیب 💰</div>
   </main>
 
+  <!-- ===== حساب‌ها ===== -->
+  <main class="view" id="view-acc">
+    <div class="sec-head" style="margin-top:4px"><h3>حساب‌ها و موجودی</h3><span></span></div>
+    <div class="hero" style="margin-bottom:14px">
+      <div class="bal-label">موجودی کل</div>
+      <div class="bal"><span id="accTotal">۰</span> <small>تومان</small></div>
+      <div class="hero-stats">
+        <div class="hstat"><span>💳 کارت‌ها</span><b id="accCardCount" style="color:#fff">۰</b></div>
+        <div class="hstat"><span>🏁 موجودی اولیه</span><b id="accOpSum" style="color:#fff">۰</b></div>
+      </div>
+    </div>
+    <div class="tx" onclick="openOpeningSheet()">
+      <span class="ic gold">🏁</span>
+      <div class="mid"><b>موجودی اولیه</b><span>نقطه شروع حساب‌وکتاب تو</span></div>
+      <div class="amt"><b id="opAmtView">۰</b><span>ویرایش ‹</span></div>
+    </div>
+    <div class="sec-head"><h3>کارت‌های بانکی</h3><button onclick="openCardSheet()">+ افزودن کارت</button></div>
+    <div id="cardList"></div>
+    <div class="panel">
+      <h4>🧮 جمع‌بندی موجودی کل</h4>
+      <div id="accBreak"></div>
+    </div>
+    <div class="foot">جیب 💰</div>
+  </main>
+
   <nav class="tabbar">
     <span id="tabInd"></span>
     <button class="tab on" data-v="home">
@@ -472,6 +502,10 @@
     <button class="tab" data-v="cal">
       <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M3.5 10h17M8 2.8V6.5M16 2.8V6.5"/></svg>
       <span>تقویم</span>
+    </button>
+    <button class="tab" data-v="acc">
+      <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13.5" rx="3"/><path d="M3 10.5h18"/><path d="M6.5 15h4"/></svg>
+      <span>حساب‌ها</span>
     </button>
     <button class="tab" data-v="rep">
       <svg viewBox="0 0 24 24"><path d="M3.5 20.5h17"/><path d="M6.5 20.5v-6M12 20.5V6M17.5 20.5v-9"/></svg>
@@ -517,7 +551,7 @@ const $=s=>document.querySelector(s);
 const FA='۰۱۲۳۴۵۶۷۸۹';
 const faD=s=>String(s).replace(/[0-9]/g,d=>FA[+d]);
 const faM=n=>faD(Number(n||0).toLocaleString('en-US')).replace(/,/g,'٬');
-const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const JM=['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
 const WD=['یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه','شنبه'];
 const pad2=n=>String(n).padStart(2,'0');
@@ -543,12 +577,14 @@ const CATS={
   {k:'other',t:'سایر',i:'⋯'}]
 };
 const catOf=(t,k)=>(CATS[t].find(c=>c.k===k)||{t:'سایر',i:'⋯'});
-let DB={txs:[]};
-try{DB=JSON.parse(localStorage.getItem('jib-v1'))||{txs:[]}}catch(e){}
+let DB={txs:[],opening:0,cards:[]};
+try{DB=Object.assign({txs:[],opening:0,cards:[]},JSON.parse(localStorage.getItem('jib-v1'))||{})}catch(e){}
+DB.txs=DB.txs||[];DB.cards=DB.cards||[];DB.opening=DB.opening||0;
 const saveDB=()=>{try{localStorage.setItem('jib-v1',JSON.stringify(DB))}catch(e){}};
+function totalBalance(){let b=DB.opening||0;(DB.cards||[]).forEach(c=>b+=c.balance||0);DB.txs.forEach(t=>b+=t.type==='in'?t.amount:-t.amount);return b;}
 
 /* ============ ناوبری ============ */
-const VORDER={home:0,cal:1,rep:2};
+const VORDER={home:0,cal:1,acc:2,rep:3};
 function go(v){
  const cur=document.querySelector('.view.active');
  let dx=36;
@@ -558,7 +594,7 @@ function go(v){
  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.v===v));
  window.scrollTo(0,0);
  moveInd();
- if(v==='home')renderHome(); if(v==='cal')renderCal(); if(v==='rep')renderRep();
+ if(v==='home')renderHome(); if(v==='cal')renderCal(); if(v==='rep')renderRep(); if(v==='acc')renderAcc();
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>go(t.dataset.v));
 function moveInd(){
@@ -633,7 +669,7 @@ function txHTML(t){
 function bindTx(){document.querySelectorAll('.tx[data-id]').forEach(el=>el.onclick=()=>openSheet(el.dataset.id));}
 function renderHome(){
  $('#todayLine').textContent=wdOf(isoToday())+'، '+jFmt(isoToday());
- let bal=0;DB.txs.forEach(t=>bal+=t.type==='in'?t.amount:-t.amount);
+ const bal=totalBalance();
  const be=$('#balance');countUp(be,Math.abs(bal));be.style.color=bal<0?'#FFB3B3':'#fff';
  const jm=jOf(isoToday());let mi=0,mo=0;
  DB.txs.forEach(t=>{const jj=jOf(t.date);if(jj.jy===jm.jy&&jj.jm===jm.jm){t.type==='in'?mi+=t.amount:mo+=t.amount;}});
@@ -746,6 +782,73 @@ function askDel(id){
 }
 function delTx(id){DB.txs=DB.txs.filter(x=>x.id!==id);saveDB();closeSheet();toast('حذف شد');renderHome();}
 function closeSheet(){$('#overlay').classList.remove('open');}
+
+/* ============ حساب‌ها ============ */
+const BCOLORS=['#177A5B','#3B82F6','#8B5CF6','#E8A33D','#E14D4D','#0EA5E9'];
+function renderAcc(){
+ const cards=DB.cards||[],opening=DB.opening||0;
+ let net=0;DB.txs.forEach(t=>net+=t.type==='in'?t.amount:-t.amount);
+ const csum=cards.reduce((a,c)=>a+(c.balance||0),0);
+ countUp($('#accTotal'),opening+csum+net);
+ $('#accCardCount').textContent=faD(cards.length)+' کارت';
+ $('#accOpSum').textContent=faM(opening);
+ $('#opAmtView').textContent=faM(opening);
+ const box=$('#cardList');
+ box.innerHTML=cards.length?cards.map((c,i)=>{
+  const col=BCOLORS[i%BCOLORS.length],ch=(c.name||'').trim()[0]||'💳';
+  return '<div class="tx" data-card="'+c.id+'"><span class="ic" style="background:'+col+'1F;color:'+col+';font-weight:800">'+esc(ch)+
+  '</span><div class="mid"><b>'+esc(c.name||'کارت بانکی')+'</b><span>کارت بانکی • برای ویرایش بزن</span></div>'+
+  '<div class="amt"><b>'+faM(c.balance||0)+'</b><span>تومان</span></div></div>';
+ }).join(''):'<div class="empty">هنوز کارتی اضافه نکردی 🙂<br>با «افزودن کارت» شروع کن!</div>';
+ box.querySelectorAll('[data-card]').forEach(el=>el.onclick=()=>openCardSheet(el.dataset.card));
+ stagger(box,'.tx');
+ $('#accBreak').innerHTML=
+  '<div class="kv"><span>🏁 موجودی اولیه</span><b>'+faM(opening)+' تومان</b></div>'+
+  '<div class="kv"><span>💳 مجموع کارت‌ها</span><b>'+faM(csum)+' تومان</b></div>'+
+  '<div class="kv"><span>📝 خالص تراکنش‌ها</span><b>'+(net<0?'−':'+')+faM(Math.abs(net))+' تومان</b></div>';
+}
+function bindAmtPreview(inpId,prevId){
+ const inp=$('#'+inpId);
+ inp.addEventListener('input',()=>{const v=inp.value.replace(/\D/g,'');inp.value=v;
+  $('#'+prevId).textContent=v?faM(+v)+' تومان':'—';});
+}
+function openOpeningSheet(){
+ $('#sheet').innerHTML='<div class="grab"></div><h3 style="margin:0 0 10px;font-size:16px;font-weight:800">🏁 موجودی اولیه</h3>'+
+ '<p style="color:var(--muted);font-size:12.5px;line-height:2.1;margin:0 0 12px">مبلغی که همین الان داری و می‌خوای از این نقطه شروع کنی — مثلاً باقی‌مونده حقوق این ماه.</p>'+
+ '<div class="field"><input id="opAmt" inputmode="numeric" placeholder="مبلغ (تومان)" value="'+(DB.opening||'')+'"></div>'+
+ '<div class="kv"><span>پیش‌نمایش</span><b id="opPrev">'+(DB.opening?faM(DB.opening)+' تومان':'—')+'</b></div>'+
+ '<button class="bigbtn" onclick="saveOpening()">ذخیره</button>';
+ $('#overlay').classList.add('open');
+ bindAmtPreview('opAmt','opPrev');
+ setTimeout(()=>$('#opAmt').focus(),450);
+}
+function saveOpening(){
+ DB.opening=+($('#opAmt').value.replace(/\D/g,'')||0);
+ saveDB();closeSheet();renderAcc();renderHome();toast('موجودی اولیه ثبت شد ✅');
+}
+function openCardSheet(id){
+ const c=id?(DB.cards.find(x=>x.id===id)||{name:'',balance:''}):{name:'',balance:''};
+ $('#sheet').innerHTML='<div class="grab"></div><h3 style="margin:0 0 14px;font-size:16px;font-weight:800">'+(id?'💳 ویرایش کارت':'💳 کارت جدید')+'</h3>'+
+ '<div class="field"><input id="cardName" placeholder="نام کارت — مثلاً ملت" value="'+esc(c.name||'')+'" maxlength="24"></div>'+
+ '<div class="field"><input id="cardAmt" inputmode="numeric" placeholder="موجودی (تومان)" value="'+(c.balance||'')+'"></div>'+
+ '<div class="kv"><span>پیش‌نمایش</span><b id="cardPrev">'+(c.balance?faM(c.balance)+' تومان':'—')+'</b></div>'+
+ '<button class="bigbtn" onclick="saveCard(\''+(id||'')+'\')">ذخیره</button>'+
+ (id?'<button class="delbtn" onclick="delCard(\''+id+'\')">حذف این کارت</button>':'');
+ $('#overlay').classList.add('open');
+ bindAmtPreview('cardAmt','cardPrev');
+ setTimeout(()=>$('#cardName').focus(),450);
+}
+function saveCard(id){
+ const name=$('#cardName').value.trim()||'کارت بانکی';
+ const bal=+($('#cardAmt').value.replace(/\D/g,'')||0);
+ if(id){const c=DB.cards.find(x=>x.id===id);if(c){c.name=name;c.balance=bal;}}
+ else DB.cards.push({id:'c'+Date.now().toString(36),name:name,balance:bal});
+ saveDB();closeSheet();renderAcc();renderHome();toast('کارت ذخیره شد ✅');
+}
+function delCard(id){
+ DB.cards=(DB.cards||[]).filter(x=>x.id!==id);
+ saveDB();closeSheet();renderAcc();renderHome();toast('کارت حذف شد');
+}
 
 /* ============ شروع ============ */
 syncAdd();
